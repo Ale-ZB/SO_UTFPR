@@ -1,0 +1,57 @@
+/*-----------------------------------
+	Nome: Alexandre Zucki Baciuk
+             RA: 2402262
+  Nome: Luis Carlos Hermann Junior
+             RA: 2073099
+  Disciplina: Sistemas Operacionais
+------------------------------------*/
+
+// interface do gerente de disco rígido (block device driver)
+
+#ifndef __DISK_MGR__
+#define __DISK_MGR__
+
+// estruturas de dados e rotinas de inicializacao e acesso
+// a um dispositivo de entrada/saida orientado a blocos,
+// tipicamente um disco rigido.
+
+// estrutura que representa um disco no sistema operacional
+
+#include "ppos_data.h"
+
+typedef struct request{
+	task_t *task;
+	struct request *next;
+	struct request *prev;
+	char type;
+	int block;
+	void *buffer;
+}DiskRequest;
+
+typedef struct{	//Controle geral do disco
+	task_t *diskManager;
+	task_t **suspendQueue;
+	DiskRequest *accessQueue;
+	semaphore_t *diskSemaphore;
+	char awakened;
+	char active;
+	long int walked;
+	int headPosition;
+} disk_t ;
+
+// inicializacao do gerente de disco
+// retorna -1 em erro ou 0 em sucesso
+// numBlocks: tamanho do disco, em blocos
+// blockSize: tamanho de cada bloco do disco, em bytes
+int disk_mgr_init (int *numBlocks, int *blockSize) ;
+
+// leitura de um bloco, do disco para o buffer
+int disk_block_read (int block, void *buffer) ;
+
+// escrita de um bloco, do buffer para o disco
+int disk_block_write (int block, void *buffer) ;
+
+// Finalização do gerente de disco
+void disk_mgr_close();
+
+#endif
