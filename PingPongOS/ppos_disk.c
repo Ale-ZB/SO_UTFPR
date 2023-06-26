@@ -1,6 +1,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <signal.h>
+#include <limits.h>
 #include "ppos.h"
 #include "ppos-core-globals.h"
 #include "ppos_disk.h"
@@ -58,14 +59,18 @@ static DiskRequest* diskCSCAN(){
 		return NULL;
 	DiskRequest *next = NULL, *lower = NULL;
 	DiskRequest *walk = ctrl->accessQueue;
+	int proximity = INT_MAX;
 	do{
 		if(walk->block < ctrl->headPosition){
 			if(lower == NULL || walk->block < lower->block)
 				lower = walk;
 		}
 		else{
-			if(next == NULL || walk->block < next->block)
+			int aux = abs(ctrl->headPosition - walk->block);
+			if(aux < proximity){
 				next = walk;
+				proximity = aux;
+			}
 		}
 		walk = walk->next;
 	}while(walk != ctrl->accessQueue);
@@ -79,7 +84,7 @@ static DiskRequest* diskCSCAN(){
 		ctrl->headPosition = 0;
 		return lower;
 	}
-	return next;
+	return next;;
 }
 
 //Considerar implementar o scheduler durante a inserção das tarefas na fila de pedidos
@@ -196,10 +201,8 @@ void diskManagerBody(){
 			}
 		}
 		sem_up(ctrl->diskSemaphore);
-		if(ctrl->accessQueue == NULL){
-			ctrl->active = 0;
-			task_suspend(ctrl->diskManager, ctrl->suspendQueue);
-		}
+		ctrl->active = 0;
+//		task_suspend(ctrl->diskManager, ctrl->suspendQueue);
 		task_yield();
 	}
 	destroyDiskControl();
@@ -216,10 +219,10 @@ void diskHandler(){
 
 int disk_mgr_init (int *numBlocks, int *blockSize){
 	//Inicializa o disco
-/*	if(disk_cmd(DISK_CMD_INIT, 0, 0) < 0){
+	if(disk_cmd(DISK_CMD_INIT, 0, 0) < 0){
 		perror("Erro ao inicializar o disco\n");
 		return FAILURE;
-	}*/
+	}
 
 	//Obtém o número de blocos e tamanho de cada
 	*numBlocks = disk_cmd(DISK_CMD_DISKSIZE, 0, 0);
@@ -244,6 +247,7 @@ int disk_mgr_init (int *numBlocks, int *blockSize){
 	ctrl->diskManager = (task_t*)malloc(sizeof(task_t));
 	task_create(ctrl->diskManager, diskManagerBody, NULL);
 	ctrl->diskManager->userTask = 0;
+//	task_join(ctrl->diskManager);
 
 	//Inicializa o tratador de sinal de operações de disco concluídas
 	diskAction.sa_handler = diskHandler;
@@ -336,8 +340,6 @@ int disk_block_write (int block, void *buffer){
 
 void disk_mgr_close(){
 	if(ctrl){
-		if(ctrl->active == 0)
-			task_resume(ctrl->diskManager);
 		ctrl->active = -1;
 		printf("Walked: %ld blocks\n", ctrl->walked);
 	}
